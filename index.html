@@ -3,79 +3,259 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemini AI Chat</title>
+    <title>QR Data Transfer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background: #f0f2f5; }
-        #chat-container { width: 100%; max-width: 600px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        #messages { height: 400px; overflow-y: auto; border: 1px solid #eee; padding: 15px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
-        .message { padding: 10px 15px; border-radius: 18px; max-width: 85%; line-height: 1.4; }
-        .user { align-self: flex-end; background: #1a73e8; color: white; border-bottom-right-radius: 2px; }
-        .ai { align-self: flex-start; background: #f1f3f4; color: #202124; border-bottom-left-radius: 2px; }
-        .controls { display: flex; gap: 10px; }
-        input { flex-grow: 1; padding: 12px; border: 1px solid #ddd; border-radius: 25px; outline: none; }
-        button { padding: 10px 20px; cursor: pointer; background: #1a73e8; color: white; border: none; border-radius: 25px; font-weight: bold; }
-        button:hover { background: #1557b0; }
+        :root {
+            --primary: #0366d6;
+            --bg: #f6f8fa;
+            --text: #24292e;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        h1 { margin-top: 10px; }
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+        }
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            margin: 10px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            width: calc(100% - 20px);
+            max-width: 200px;
+        }
+        button:hover { background-color: #005cc5; }
+        textarea {
+            width: 100%;
+            height: 120px;
+            margin-bottom: 15px;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 1px solid #d1d5da;
+            border-radius: 4px;
+        }
+        #qr-container {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .hidden { display: none !important; }
+        #reader { width: 100%; margin-top: 15px; }
+        #output-area {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e1e4e8;
+            border-radius: 6px;
+            word-wrap: break-word;
+            text-align: left;
+        }
+        #output-image { max-width: 100%; height: auto; border-radius: 4px; }
+        .progress-bar { font-weight: bold; margin: 10px 0; color: var(--primary); }
     </style>
 </head>
 <body>
 
-<div id="chat-container">
-    <h2 style="text-align: center; color: #1a73e8;">Gemini Chat</h2>
-    <div id="messages"></div>
-    <div class="controls">
-        <input type="text" id="userInput" placeholder="Ask Gemini something...">
-        <button onclick="sendMessage()">Send</button>
+    <div id="home-screen" class="container">
+        <h1>QR Transfer</h1>
+        <p>Select an option to begin</p>
+        <button onclick="showScreen('send-screen')">Send</button>
+        <button onclick="showScreen('receive-screen'); startScanner();">Receive</button>
     </div>
-</div>
 
-<script>
-    // Replace with your actual Gemini API Key
-    const GEMINI_API_KEY = 'AIzaSyCNO7jP0gice8iz5Y2N3wbeXOvQezgVdH8'; 
-    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    <div id="send-screen" class="container hidden">
+        <h2>Send Data</h2>
+        <textarea id="text-input" placeholder="Type text, paste code here..."></textarea>
+        <div style="margin-bottom: 15px;">
+            <label style="font-size: 14px;">Or select a small image:</label><br>
+            <input type="file" id="image-input" accept="image/*" style="margin-top:5px;">
+        </div>
+        <button onclick="startSending()">Generate QR Stream</button>
+        <button onclick="stopSending(); showScreen('home-screen')" style="background-color: #cb2431;">Cancel</button>
+        
+        <div id="qr-status" class="progress-bar hidden"></div>
+        <div id="qr-container"></div>
+    </div>
 
-    async function sendMessage() {
-        const input = document.getElementById('userInput');
-        const messageText = input.value.trim();
-        if (!messageText) return;
+    <div id="receive-screen" class="container hidden">
+        <h2>Receive Data</h2>
+        <div id="receive-progress" class="progress-bar">Waiting for QR codes...</div>
+        <div id="reader"></div>
+        <button onclick="stopScanner(); showScreen('home-screen')" style="background-color: #cb2431; margin-top: 15px;">Stop & Cancel</button>
 
-        appendMessage(messageText, 'user');
-        input.value = '';
+        <div id="output-area" class="hidden">
+            <h3>Received Data:</h3>
+            <img id="output-image" class="hidden" src="" alt="Received Image">
+            <pre id="output-text" class="hidden" style="white-space: pre-wrap; font-family: monospace;"></pre>
+        </div>
+    </div>
 
-        try {
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [{ text: messageText }]
-                    }]
-                })
-            });
+    <script>
+        // --- SENDER LOGIC ---
+        let qrCode = null;
+        let chunks = [];
+        let currentChunkIndex = 0;
+        let sendInterval = null;
+        const CHUNK_SIZE = 250; // Keep small for fast, reliable mobile scanning
 
-            const data = await response.json();
+        // Handle Image to Base64 conversion
+        document.getElementById('image-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                document.getElementById('text-input').value = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        function startSending() {
+            let data = document.getElementById('text-input').value;
+            if (!data) {
+                alert("Please enter some text or select an image.");
+                return;
+            }
             
-            // Checking for internal errors from the API
-            if (data.error) {
-                throw new Error(data.error.message);
+            // Partition the data into chunks
+            chunks = [];
+            for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+                chunks.push(data.substring(i, i + CHUNK_SIZE));
             }
 
-            const aiResponse = data.candidates[0].content.parts[0].text;
-            appendMessage(aiResponse, 'ai');
-        } catch (error) {
-            appendMessage("Error: " + error.message, 'ai');
-            console.error("Gemini Error:", error);
+            document.getElementById('qr-status').classList.remove('hidden');
+            if (!qrCode) {
+                qrCode = new QRCode(document.getElementById("qr-container"), {
+                    width: 256,
+                    height: 256,
+                    correctLevel: QRCode.CorrectLevel.L // Low correction for max capacity
+                });
+            }
+
+            currentChunkIndex = 0;
+            clearInterval(sendInterval);
+            
+            // Loop through QR codes rapidly
+            sendInterval = setInterval(() => {
+                let payload = `${currentChunkIndex + 1}/${chunks.length}|${chunks[currentChunkIndex]}`;
+                qrCode.makeCode(payload);
+                document.getElementById('qr-status').innerText = `Flashing Chunk ${currentChunkIndex + 1} of ${chunks.length}`;
+                currentChunkIndex = (currentChunkIndex + 1) % chunks.length;
+            }, 400); // 400ms per QR code
         }
-    }
 
-    function appendMessage(text, sender) {
-        const msgDiv = document.createElement('div');
-        msgDiv.classList.add('message', sender);
-        msgDiv.innerText = text;
-        document.getElementById('messages').appendChild(msgDiv);
-        const chatBox = document.getElementById('messages');
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }
-</script>
+        function stopSending() {
+            clearInterval(sendInterval);
+            document.getElementById('qr-container').innerHTML = '';
+            qrCode = null;
+            document.getElementById('qr-status').classList.add('hidden');
+        }
 
+        // --- RECEIVER LOGIC ---
+        let html5QrcodeScanner = null;
+        let receivedChunks = [];
+        let totalExpectedChunks = 0;
+
+        function startScanner() {
+            receivedChunks = [];
+            totalExpectedChunks = 0;
+            document.getElementById('output-area').classList.add('hidden');
+            document.getElementById('output-image').classList.add('hidden');
+            document.getElementById('output-text').classList.add('hidden');
+            document.getElementById('receive-progress').innerText = "Scanning...";
+
+            html5QrcodeScanner = new Html5Qrcode("reader");
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            
+            html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
+            .catch(err => {
+                alert("Camera error. Make sure you gave permission and are using HTTPS.");
+            });
+        }
+
+        function stopScanner() {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.stop().catch(err => console.log("Stop failed", err));
+            }
+        }
+
+        function onScanSuccess(decodedText) {
+            // Parse payload: e.g., "1/5|Hello World..."
+            const match = decodedText.match(/^(\d+)\/(\d+)\|(.*)$/s);
+            if (match) {
+                const index = parseInt(match[1]) - 1;
+                const total = parseInt(match[2]);
+                const data = match[3];
+
+                // Initialize array if it's the first scan
+                if (totalExpectedChunks === 0) {
+                    totalExpectedChunks = total;
+                    receivedChunks = new Array(total).fill(null);
+                }
+
+                // Save chunk if we haven't got this specific one yet
+                if (receivedChunks[index] === null) {
+                    receivedChunks[index] = data;
+                }
+
+                // Calculate progress
+                const receivedCount = receivedChunks.filter(c => c !== null).length;
+                document.getElementById('receive-progress').innerText = `Received ${receivedCount} of ${totalExpectedChunks} chunks... Keep pointing!`;
+
+                // If all chunks received
+                if (receivedCount === totalExpectedChunks) {
+                    stopScanner();
+                    processReceivedData(receivedChunks.join(''));
+                }
+            }
+        }
+
+        function processReceivedData(fullData) {
+            document.getElementById('receive-progress').innerText = "Transfer Complete!";
+            document.getElementById('output-area').classList.remove('hidden');
+            
+            const imgEl = document.getElementById('output-image');
+            const txtEl = document.getElementById('output-text');
+            
+            // Smart recognition: Does it look like a Data URI image?
+            if (fullData.startsWith("data:image/")) {
+                imgEl.src = fullData;
+                imgEl.classList.remove('hidden');
+                txtEl.classList.add('hidden');
+            } else {
+                // Otherwise treat as Text/Code
+                txtEl.innerText = fullData;
+                txtEl.classList.remove('hidden');
+                imgEl.classList.add('hidden');
+            }
+        }
+
+        // --- UTILS ---
+        function showScreen(screenId) {
+            document.getElementById('home-screen').classList.add('hidden');
+            document.getElementById('send-screen').classList.add('hidden');
+            document.getElementById('receive-screen').classList.add('hidden');
+            document.getElementById(screenId).classList.remove('hidden');
+        }
+    </script>
 </body>
 </html>

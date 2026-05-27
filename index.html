@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Data Transfer</title>
+    <title>Turbo QR Transfer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         :root {
-            --primary: #0366d6;
-            --bg: #f6f8fa;
-            --text: #24292e;
+            --primary: #2ea44f;
+            --bg: #0d1117;
+            --text: #c9d1d9;
+            --card: #161b22;
+            --border: #30363d;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
@@ -23,90 +25,102 @@
             align-items: center;
             text-align: center;
         }
-        h1 { margin-top: 10px; }
+        h1 { margin-top: 10px; color: #fff; }
         .container {
             width: 100%;
             max-width: 500px;
-            background: white;
+            background: var(--card);
             padding: 20px;
             border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: 1px solid var(--border);
             box-sizing: border-box;
         }
         button {
             background-color: var(--primary);
             color: white;
             border: none;
-            padding: 12px 20px;
+            padding: 14px 20px;
             margin: 10px;
             border-radius: 6px;
             font-size: 16px;
+            font-weight: bold;
             cursor: pointer;
             width: calc(100% - 20px);
             max-width: 200px;
+            transition: background 0.2s;
         }
-        button:hover { background-color: #005cc5; }
+        button:hover { background-color: #2c974b; }
         textarea {
             width: 100%;
-            height: 120px;
+            height: 140px;
             margin-bottom: 15px;
             padding: 10px;
             box-sizing: border-box;
-            border: 1px solid #d1d5da;
-            border-radius: 4px;
+            background-color: #0d1117;
+            color: #fff;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: monospace;
         }
         #qr-container {
             display: flex;
             justify-content: center;
             margin: 20px 0;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            display: inline-block;
         }
         .hidden { display: none !important; }
-        #reader { width: 100%; margin-top: 15px; }
+        #reader { width: 100%; margin-top: 15px; border-radius: 8px; overflow: hidden; }
         #output-area {
             margin-top: 20px;
             padding: 15px;
-            background: #e1e4e8;
+            background: #21262d;
+            border: 1px solid var(--border);
             border-radius: 6px;
             word-wrap: break-word;
             text-align: left;
         }
-        #output-image { max-width: 100%; height: auto; border-radius: 4px; }
-        .progress-bar { font-weight: bold; margin: 10px 0; color: var(--primary); }
+        #output-image { max-width: 100%; height: auto; border-radius: 4px; display: block; margin: 0 auto;}
+        .progress-bar { font-weight: bold; margin: 10px 0; color: #58a6ff; font-size: 18px; }
     </style>
 </head>
 <body>
 
     <div id="home-screen" class="container">
-        <h1>QR Transfer</h1>
-        <p>Select an option to begin</p>
+        <h1>Turbo QR Transfer</h1>
+        <p>High-speed optical data transfer</p>
         <button onclick="showScreen('send-screen')">Send</button>
         <button onclick="showScreen('receive-screen'); startScanner();">Receive</button>
     </div>
 
     <div id="send-screen" class="container hidden">
         <h2>Send Data</h2>
-        <textarea id="text-input" placeholder="Type text, paste code here..."></textarea>
+        <textarea id="text-input" placeholder="Paste code, text, or load an image..."></textarea>
         <div style="margin-bottom: 15px;">
-            <label style="font-size: 14px;">Or select a small image:</label><br>
-            <input type="file" id="image-input" accept="image/*" style="margin-top:5px;">
+            <label style="font-size: 14px;">Upload Image:</label><br>
+            <input type="file" id="image-input" accept="image/*" style="margin-top:5px; color: var(--text);">
         </div>
-        <button onclick="startSending()">Generate QR Stream</button>
-        <button onclick="stopSending(); showScreen('home-screen')" style="background-color: #cb2431;">Cancel</button>
+        <button onclick="startSending()">Stream QR</button>
+        <button onclick="stopSending(); showScreen('home-screen')" style="background-color: #da3633;">Cancel</button>
         
         <div id="qr-status" class="progress-bar hidden"></div>
-        <div id="qr-container"></div>
+        <div>
+            <div id="qr-container" class="hidden"></div>
+        </div>
     </div>
 
     <div id="receive-screen" class="container hidden">
-        <h2>Receive Data</h2>
-        <div id="receive-progress" class="progress-bar">Waiting for QR codes...</div>
+        <h2>Receiving Stream</h2>
+        <div id="receive-progress" class="progress-bar">Initializing camera...</div>
         <div id="reader"></div>
-        <button onclick="stopScanner(); showScreen('home-screen')" style="background-color: #cb2431; margin-top: 15px;">Stop & Cancel</button>
+        <button onclick="stopScanner(); showScreen('home-screen')" style="background-color: #da3633; margin-top: 15px;">Stop</button>
 
         <div id="output-area" class="hidden">
-            <h3>Received Data:</h3>
+            <h3 style="margin-top:0; color: #58a6ff;">Payload Decoded:</h3>
             <img id="output-image" class="hidden" src="" alt="Received Image">
-            <pre id="output-text" class="hidden" style="white-space: pre-wrap; font-family: monospace;"></pre>
+            <pre id="output-text" class="hidden" style="white-space: pre-wrap; font-family: monospace; background: #0d1117; padding: 10px; border-radius: 4px; overflow-x: auto; color: #79c0ff;"></pre>
         </div>
     </div>
 
@@ -116,9 +130,12 @@
         let chunks = [];
         let currentChunkIndex = 0;
         let sendInterval = null;
-        const CHUNK_SIZE = 250; // Keep small for fast, reliable mobile scanning
+        
+        // OPTIMIZATION 1: Increased chunk capacity. Modern phones handle complex QRs easily.
+        const CHUNK_SIZE = 500; 
+        // OPTIMIZATION 2: Dropped display interval to 150ms (~7 frames per second)
+        const FLASH_SPEED_MS = 150; 
 
-        // Handle Image to Base64 conversion
         document.getElementById('image-input').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -131,41 +148,40 @@
 
         function startSending() {
             let data = document.getElementById('text-input').value;
-            if (!data) {
-                alert("Please enter some text or select an image.");
-                return;
-            }
+            if (!data) return alert("No data to send.");
             
-            // Partition the data into chunks
             chunks = [];
             for (let i = 0; i < data.length; i += CHUNK_SIZE) {
                 chunks.push(data.substring(i, i + CHUNK_SIZE));
             }
 
             document.getElementById('qr-status').classList.remove('hidden');
+            document.getElementById('qr-container').classList.remove('hidden');
+            
             if (!qrCode) {
                 qrCode = new QRCode(document.getElementById("qr-container"), {
-                    width: 256,
-                    height: 256,
-                    correctLevel: QRCode.CorrectLevel.L // Low correction for max capacity
+                    width: 300, // Slightly bigger size for cleaner camera focus
+                    height: 300,
+                    correctLevel: QRCode.CorrectLevel.L // Low error correction = higher data capacity per frame
                 });
             }
 
             currentChunkIndex = 0;
             clearInterval(sendInterval);
             
-            // Loop through QR codes rapidly
             sendInterval = setInterval(() => {
+                // Formatting payload with tight pipe separators to save overhead bytes
                 let payload = `${currentChunkIndex + 1}/${chunks.length}|${chunks[currentChunkIndex]}`;
                 qrCode.makeCode(payload);
-                document.getElementById('qr-status').innerText = `Flashing Chunk ${currentChunkIndex + 1} of ${chunks.length}`;
+                document.getElementById('qr-status').innerText = `Streaming: Frame ${currentChunkIndex + 1}/${chunks.length}`;
                 currentChunkIndex = (currentChunkIndex + 1) % chunks.length;
-            }, 400); // 400ms per QR code
+            }, FLASH_SPEED_MS);
         }
 
         function stopSending() {
             clearInterval(sendInterval);
             document.getElementById('qr-container').innerHTML = '';
+            document.getElementById('qr-container').classList.add('hidden');
             qrCode = null;
             document.getElementById('qr-status').classList.add('hidden');
         }
@@ -174,54 +190,59 @@
         let html5QrcodeScanner = null;
         let receivedChunks = [];
         let totalExpectedChunks = 0;
+        let lastReadIndex = -1;
 
         function startScanner() {
             receivedChunks = [];
             totalExpectedChunks = 0;
+            lastReadIndex = -1;
             document.getElementById('output-area').classList.add('hidden');
             document.getElementById('output-image').classList.add('hidden');
             document.getElementById('output-text').classList.add('hidden');
-            document.getElementById('receive-progress').innerText = "Scanning...";
+            document.getElementById('receive-progress').innerText = "Syncing with stream...";
 
             html5QrcodeScanner = new Html5Qrcode("reader");
-            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            
+            // OPTIMIZATION 3: Pushed scanner to 30 FPS. Enabled experimental fast scanning.
+            const config = { 
+                fps: 30, 
+                qrbox: (width, height) => {
+                    return { width: Math.min(width * 0.8, 280), height: Math.min(height * 0.8, 280) };
+                },
+                experimentalFeatures: {
+                    useBarCodeDetectorIfSupported: true
+                }
+            };
             
             html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
-            .catch(err => {
-                alert("Camera error. Make sure you gave permission and are using HTTPS.");
-            });
+            .catch(err => alert("Camera initialization failed. Ensure HTTPS deployment."));
         }
 
         function stopScanner() {
             if (html5QrcodeScanner) {
-                html5QrcodeScanner.stop().catch(err => console.log("Stop failed", err));
+                html5QrcodeScanner.stop().catch(err => console.log("Scanner stop error", err));
             }
         }
 
         function onScanSuccess(decodedText) {
-            // Parse payload: e.g., "1/5|Hello World..."
             const match = decodedText.match(/^(\d+)\/(\d+)\|(.*)$/s);
-            if (match) {
-                const index = parseInt(match[1]) - 1;
-                const total = parseInt(match[2]);
-                const data = match[3];
+            if (!match) return;
 
-                // Initialize array if it's the first scan
-                if (totalExpectedChunks === 0) {
-                    totalExpectedChunks = total;
-                    receivedChunks = new Array(total).fill(null);
-                }
+            const index = parseInt(match[1]) - 1;
+            const total = parseInt(match[2]);
+            const data = match[3];
 
-                // Save chunk if we haven't got this specific one yet
-                if (receivedChunks[index] === null) {
-                    receivedChunks[index] = data;
-                }
+            if (totalExpectedChunks === 0) {
+                totalExpectedChunks = total;
+                receivedChunks = new Array(total).fill(null);
+            }
 
-                // Calculate progress
+            if (receivedChunks[index] === null) {
+                receivedChunks[index] = data;
+                // Quick UI confirmation that frames are piling up fast
                 const receivedCount = receivedChunks.filter(c => c !== null).length;
-                document.getElementById('receive-progress').innerText = `Received ${receivedCount} of ${totalExpectedChunks} chunks... Keep pointing!`;
-
-                // If all chunks received
+                document.getElementById('receive-progress').innerText = `🚀 Captured ${receivedCount}/${totalExpectedChunks} frames`;
+                
                 if (receivedCount === totalExpectedChunks) {
                     stopScanner();
                     processReceivedData(receivedChunks.join(''));
@@ -230,26 +251,23 @@
         }
 
         function processReceivedData(fullData) {
-            document.getElementById('receive-progress').innerText = "Transfer Complete!";
+            document.getElementById('receive-progress').innerText = "⚡ Data Assembled Perfectly!";
             document.getElementById('output-area').classList.remove('hidden');
             
             const imgEl = document.getElementById('output-image');
             const txtEl = document.getElementById('output-text');
             
-            // Smart recognition: Does it look like a Data URI image?
             if (fullData.startsWith("data:image/")) {
                 imgEl.src = fullData;
                 imgEl.classList.remove('hidden');
                 txtEl.classList.add('hidden');
             } else {
-                // Otherwise treat as Text/Code
                 txtEl.innerText = fullData;
                 txtEl.classList.remove('hidden');
                 imgEl.classList.add('hidden');
             }
         }
 
-        // --- UTILS ---
         function showScreen(screenId) {
             document.getElementById('home-screen').classList.add('hidden');
             document.getElementById('send-screen').classList.add('hidden');

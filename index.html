@@ -141,10 +141,10 @@
         <textarea id="text-input" placeholder="Paste your code, text, or drop an image below..."></textarea>
         
         <div style="margin-bottom: 15px; text-align: left;">
-            <label style="font-size: 14px; color: #94a3b8;">1. Opt-In Protocol Configuration:</label><br>
+            <label style="font-size: 14px; color: #94a3b8;">1. Choose Symbology Protocol:</label><br>
             <select id="matrix-type">
                 <option value="datamatrix">Data Matrix (Ultra-Compact & Resilient)</option>
-                <option value="qrcode">Standard QR Code (High Compatible)</option>
+                <option value="qrcode">Standard QR Code (High Compatibility)</option>
             </select>
         </div>
 
@@ -189,7 +189,7 @@
         let sendInterval = null;
         let chunks = [];
         let currentChunkIndex = 0;
-        const FLASH_SPEED_MS = 250; // Sweet spot for phone camera auto-focus tracking
+        const FLASH_SPEED_MS = 250; 
 
         document.getElementById('image-input').addEventListener('change', function(e) {
             const file = e.target.files[0];
@@ -207,8 +207,9 @@
             
             const matrixType = document.getElementById('matrix-type').value;
             
-            // Adjust partition sizing. Data matrix scales cleanly at ~350 characters per package block
-            const CHUNK_SIZE = (matrixType === 'datamatrix') ? 350 : 450; 
+            // OPTIMIZATION: Data matrix needs a slightly lower density limit per code block 
+            // to stay readable and sharp on handheld camera resolutions.
+            const CHUNK_SIZE = (matrixType === 'datamatrix') ? 180 : 450; 
 
             chunks = [];
             for (let i = 0; i < data.length; i += CHUNK_SIZE) {
@@ -220,7 +221,6 @@
             container.classList.remove('hidden');
             container.innerHTML = ''; 
 
-            // Create target rendering canvas element dynamically
             const canvas = document.createElement('canvas');
             canvas.id = 'matrix-canvas';
             container.appendChild(canvas);
@@ -232,11 +232,10 @@
                 let payload = `${currentChunkIndex + 1}/${chunks.length}|${chunks[currentChunkIndex]}`;
                 
                 try {
-                    // Call BWIP-JS configuration directly onto drawing canvas context
                     bwipjs.toCanvas('matrix-canvas', {
-                        bcid: matrixType,   // Pass either 'qrcode' or 'datamatrix'
-                        text: payload,      // Chunk structural packet data
-                        scale: 4,           // Ensure high pixel crispness
+                        bcid: matrixType,   
+                        text: payload,      
+                        scale: 5, // Slightly higher crispness scale
                         includetext: false  
                     });
                     document.getElementById('qr-status').innerText = `Broadcasting: Frame ${currentChunkIndex + 1}/${chunks.length}`;
@@ -274,17 +273,22 @@
             document.getElementById('live-stream-preview').innerText = '';
             document.getElementById('receive-progress').innerText = "Locking onto target stream...";
 
-            html5QrcodeScanner = new Html5Qrcode("reader");
+            // CRITICAL FIX: Explicitly define matrix support arrays inside the core constructor configuration!
+            const allowedFormats = [
+                Html5QrcodeSupportedFormats.QR_CODE,
+                Html5QrcodeSupportedFormats.DATA_MATRIX
+            ];
+
+            html5QrcodeScanner = new Html5Qrcode("reader", { formatsToSupport: allowedFormats });
             
             const config = { 
-                fps: 30, // Poll device hardware rapid-refresh video streams
+                fps: 30, 
                 qrbox: (width, height) => {
                     return { width: Math.min(width * 0.8, 280), height: Math.min(height * 0.8, 280) };
                 },
                 experimentalFeatures: { useBarCodeDetectorIfSupported: true }
             };
             
-            // Starts camera looking for ALL visual array properties automatically (QR & DataMatrix included)
             html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
             .catch(err => alert("Camera configuration rejected. Ensure secure deployment (HTTPS)."));
         }

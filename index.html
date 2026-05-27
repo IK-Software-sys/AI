@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live-Compose QR Transfer</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <title>Hybrid Matrix Data Transfer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bwip-js/4.7.0/bwip-js-min.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         :root {
@@ -51,9 +51,8 @@
             transition: all 0.2s;
         }
         button:hover { background-color: #33d9ef; transform: translateY(-1px); }
-        textarea {
+        textarea, select {
             width: 100%;
-            height: 140px;
             margin-bottom: 15px;
             padding: 12px;
             box-sizing: border-box;
@@ -61,15 +60,22 @@
             color: #fff;
             border: 1px solid var(--border);
             border-radius: 8px;
-            font-family: monospace;
-            font-size: 14px;
         }
+        textarea { height: 120px; font-family: monospace; font-size: 14px; }
+        select { font-size: 15px; cursor: pointer; }
         #qr-container {
             display: inline-block;
             margin: 20px 0;
             background: white;
-            padding: 15px;
+            padding: 20px;
             border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        #matrix-canvas {
+            max-width: 260px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
         }
         .hidden { display: none !important; }
         #reader { width: 100%; margin-top: 15px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
@@ -91,23 +97,9 @@
             margin-bottom: 8px;
             font-weight: bold;
         }
-        .chunk-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-            margin-bottom: 10px;
-        }
-        .chunk-dot {
-            width: 12px;
-            height: 12px;
-            background-color: #334155;
-            border-radius: 2px;
-            transition: background-color 0.3s;
-        }
-        .chunk-dot.filled {
-            background-color: var(--success);
-            box-shadow: 0 0 6px var(--success);
-        }
+        .chunk-grid { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+        .chunk-dot { width: 12px; height: 12px; background-color: #334155; border-radius: 2px; }
+        .chunk-dot.filled { background-color: var(--success); box-shadow: 0 0 6px var(--success); }
         .live-stream-text {
             font-family: monospace;
             font-size: 11px;
@@ -138,20 +130,30 @@
 <body>
 
     <div id="home-screen" class="container">
-        <h1>QR Transfer</h1>
-        <p style="color: #94a3b8;">Real-time optical file & code pipeline</p>
+        <h1>Matrix Pipeline</h1>
+        <p style="color: #94a3b8;">High-Density Optical Data Stream</p>
         <button onclick="showScreen('send-screen')">Send</button>
         <button onclick="showScreen('receive-screen'); startScanner();">Receive</button>
     </div>
 
     <div id="send-screen" class="container hidden">
         <h2>Send Data</h2>
-        <textarea id="text-input" placeholder="Paste your code, long text, or drop an image below..."></textarea>
+        <textarea id="text-input" placeholder="Paste your code, text, or drop an image below..."></textarea>
+        
         <div style="margin-bottom: 15px; text-align: left;">
-            <label style="font-size: 14px; color: #94a3b8;">Convert Image to Data Stream:</label><br>
+            <label style="font-size: 14px; color: #94a3b8;">1. Opt-In Protocol Configuration:</label><br>
+            <select id="matrix-type">
+                <option value="datamatrix">Data Matrix (Ultra-Compact & Resilient)</option>
+                <option value="qrcode">Standard QR Code (High Compatible)</option>
+            </select>
+        </div>
+
+        <div style="margin-bottom: 20px; text-align: left;">
+            <label style="font-size: 14px; color: #94a3b8;">2. Optional File Upload:</label><br>
             <input type="file" id="image-input" accept="image/*" style="margin-top:5px; color: var(--text);">
         </div>
-        <button onclick="startSending()">Stream QR</button>
+
+        <button onclick="startSending()">Stream Stream</button>
         <button onclick="stopSending(); showScreen('home-screen')" style="background-color: #ef4444; color: white;">Cancel</button>
         
         <div id="qr-status" class="progress-bar hidden"></div>
@@ -184,14 +186,10 @@
 
     <script>
         // --- SENDER LOGIC ---
-        let qrCode = null;
+        let sendInterval = null;
         let chunks = [];
         let currentChunkIndex = 0;
-        let sendInterval = null;
-        
-        const CHUNK_SIZE = 480; 
-        // MODIFICATION 1: Adjusted display delay slightly to 250ms for reliable camera hardware registry
-        const FLASH_SPEED_MS = 250; 
+        const FLASH_SPEED_MS = 250; // Sweet spot for phone camera auto-focus tracking
 
         document.getElementById('image-input').addEventListener('change', function(e) {
             const file = e.target.files[0];
@@ -207,29 +205,46 @@
             let data = document.getElementById('text-input').value;
             if (!data) return alert("Please enter data first.");
             
+            const matrixType = document.getElementById('matrix-type').value;
+            
+            // Adjust partition sizing. Data matrix scales cleanly at ~350 characters per package block
+            const CHUNK_SIZE = (matrixType === 'datamatrix') ? 350 : 450; 
+
             chunks = [];
             for (let i = 0; i < data.length; i += CHUNK_SIZE) {
                 chunks.push(data.substring(i, i + CHUNK_SIZE));
             }
 
             document.getElementById('qr-status').classList.remove('hidden');
-            document.getElementById('qr-container').classList.remove('hidden');
-            
-            if (!qrCode) {
-                qrCode = new QRCode(document.getElementById("qr-container"), {
-                    width: 300,
-                    height: 300,
-                    correctLevel: QRCode.CorrectLevel.L
-                });
-            }
+            const container = document.getElementById('qr-container');
+            container.classList.remove('hidden');
+            container.innerHTML = ''; 
+
+            // Create target rendering canvas element dynamically
+            const canvas = document.createElement('canvas');
+            canvas.id = 'matrix-canvas';
+            container.appendChild(canvas);
 
             currentChunkIndex = 0;
             clearInterval(sendInterval);
             
             sendInterval = setInterval(() => {
                 let payload = `${currentChunkIndex + 1}/${chunks.length}|${chunks[currentChunkIndex]}`;
-                qrCode.makeCode(payload);
-                document.getElementById('qr-status').innerText = `Broadcasting: Frame ${currentChunkIndex + 1}/${chunks.length}`;
+                
+                try {
+                    // Call BWIP-JS configuration directly onto drawing canvas context
+                    bwipjs.toCanvas('matrix-canvas', {
+                        bcid: matrixType,   // Pass either 'qrcode' or 'datamatrix'
+                        text: payload,      // Chunk structural packet data
+                        scale: 4,           // Ensure high pixel crispness
+                        includetext: false  
+                    });
+                    document.getElementById('qr-status').innerText = `Broadcasting: Frame ${currentChunkIndex + 1}/${chunks.length}`;
+                } catch (err) {
+                    console.error(err);
+                    document.getElementById('qr-status').innerText = "Encoding Matrix Error!";
+                }
+
                 currentChunkIndex = (currentChunkIndex + 1) % chunks.length;
             }, FLASH_SPEED_MS);
         }
@@ -238,7 +253,6 @@
             clearInterval(sendInterval);
             document.getElementById('qr-container').innerHTML = '';
             document.getElementById('qr-container').classList.add('hidden');
-            qrCode = null;
             document.getElementById('qr-status').classList.add('hidden');
         }
 
@@ -258,25 +272,26 @@
             document.getElementById('live-image-preview').classList.add('hidden');
             document.getElementById('dot-grid').innerHTML = '';
             document.getElementById('live-stream-preview').innerText = '';
-            document.getElementById('receive-progress').innerText = "Targeting stream...";
+            document.getElementById('receive-progress').innerText = "Locking onto target stream...";
 
             html5QrcodeScanner = new Html5Qrcode("reader");
             
             const config = { 
-                fps: 30, 
+                fps: 30, // Poll device hardware rapid-refresh video streams
                 qrbox: (width, height) => {
                     return { width: Math.min(width * 0.8, 280), height: Math.min(height * 0.8, 280) };
                 },
                 experimentalFeatures: { useBarCodeDetectorIfSupported: true }
             };
             
+            // Starts camera looking for ALL visual array properties automatically (QR & DataMatrix included)
             html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
-            .catch(err => alert("Camera configuration rejected. Ensure secure context (HTTPS)."));
+            .catch(err => alert("Camera configuration rejected. Ensure secure deployment (HTTPS)."));
         }
 
         function stopScanner() {
             if (html5QrcodeScanner) {
-                html5QrcodeScanner.stop().catch(err => console.log("Scanner loop suspended."));
+                html5QrcodeScanner.stop().catch(err => console.log("Scanner loop detached."));
             }
         }
 
@@ -288,12 +303,10 @@
             const total = parseInt(match[2]);
             const data = match[3];
 
-            // Initialize visual assembly assets on primary capture hook
             if (totalExpectedChunks === 0) {
                 totalExpectedChunks = total;
                 receivedChunks = new Array(total).fill(null);
                 
-                // Show real-time window and build structural grid boxes
                 document.getElementById('comp-window').classList.remove('hidden');
                 const grid = document.getElementById('dot-grid');
                 for(let i=0; i<total; i++) {
@@ -304,20 +317,15 @@
                 }
             }
 
-            // Save chunk if it's new
             if (receivedChunks[index] === null) {
                 receivedChunks[index] = data;
-                
-                // Light up corresponding grid unit
                 document.getElementById(`dot-${index}`).classList.add('filled');
                 
-                // MODIFICATION 2: Update real-time text/image composition preview window
                 updateLivePreview();
 
                 const receivedCount = receivedChunks.filter(c => c !== null).length;
                 document.getElementById('receive-progress').innerText = `⚡ Collecting: ${receivedCount}/${totalExpectedChunks} Frames`;
                 
-                // Check if pipeline is filled completely
                 if (receivedCount === totalExpectedChunks) {
                     stopScanner();
                     document.getElementById('comp-window').classList.add('hidden');
@@ -327,17 +335,12 @@
         }
 
         function updateLivePreview() {
-            // Reconstruct whatever string chunks are currently inside the array map
-            // Use placeholder markers for gaps that haven't flashed into view yet
             let partialString = receivedChunks.map(chunk => chunk === null ? "[...]" : chunk).join('');
-            
             const textPreviewEl = document.getElementById('live-stream-preview');
             const imgPreviewEl = document.getElementById('live-image-preview');
 
-            // Handle real-time visual string text adjustments
             textPreviewEl.innerText = partialString.substring(0, 800) + (partialString.length > 800 ? "\n... [Data continues streaming] ..." : "");
             
-            // Real-time image rendering: If it is a base64 string asset and doesn't contain holes, try rendering early
             if (partialString.startsWith("data:image/") && !receivedChunks.includes(null)) {
                 imgPreviewEl.src = partialString;
                 imgPreviewEl.classList.remove('hidden');

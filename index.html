@@ -78,9 +78,8 @@
             margin: 0 auto;
         }
         .hidden { display: none !important; }
-        #reader { width: 100%; margin-top: 15px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+        #reader { width: 100%; margin-top: 15px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: #000; }
         
-        /* LIVE COMPOSITION WINDOW STYLES */
         .composition-box {
             margin-top: 20px;
             background: #0f141c;
@@ -113,7 +112,6 @@
             border-radius: 4px;
         }
 
-        /* FINAL OUTPUT STYLES */
         #output-area {
             margin-top: 20px;
             padding: 15px;
@@ -143,6 +141,7 @@
         <div style="margin-bottom: 15px; text-align: left;">
             <label style="font-size: 14px; color: #94a3b8;">1. Choose Symbology Protocol:</label><br>
             <select id="matrix-type">
+                <option value="azteccode">Aztec Code (No Quiet Zone, Highest Density)</option>
                 <option value="datamatrix">Data Matrix (Ultra-Compact & Resilient)</option>
                 <option value="qrcode">Standard QR Code (High Compatibility)</option>
             </select>
@@ -207,9 +206,10 @@
             
             const matrixType = document.getElementById('matrix-type').value;
             
-            // OPTIMIZATION: Data matrix needs a slightly lower density limit per code block 
-            // to stay readable and sharp on handheld camera resolutions.
-            const CHUNK_SIZE = (matrixType === 'datamatrix') ? 180 : 450; 
+            // Chunk sizing calibrated for optimum mobile read accuracy per symbology
+            let CHUNK_SIZE = 450; // QR Default
+            if (matrixType === 'datamatrix') CHUNK_SIZE = 180;
+            if (matrixType === 'azteccode') CHUNK_SIZE = 300; // Aztec fits well here
 
             chunks = [];
             for (let i = 0; i < data.length; i += CHUNK_SIZE) {
@@ -235,7 +235,7 @@
                     bwipjs.toCanvas('matrix-canvas', {
                         bcid: matrixType,   
                         text: payload,      
-                        scale: 5, // Slightly higher crispness scale
+                        scale: 5, 
                         includetext: false  
                     });
                     document.getElementById('qr-status').innerText = `Broadcasting: Frame ${currentChunkIndex + 1}/${chunks.length}`;
@@ -273,10 +273,11 @@
             document.getElementById('live-stream-preview').innerText = '';
             document.getElementById('receive-progress').innerText = "Locking onto target stream...";
 
-            // CRITICAL FIX: Explicitly define matrix support arrays inside the core constructor configuration!
+            // ADDED AZTEC CODE TO THE SUPPORT MATRIX
             const allowedFormats = [
                 Html5QrcodeSupportedFormats.QR_CODE,
-                Html5QrcodeSupportedFormats.DATA_MATRIX
+                Html5QrcodeSupportedFormats.DATA_MATRIX,
+                Html5QrcodeSupportedFormats.AZTEC
             ];
 
             html5QrcodeScanner = new Html5Qrcode("reader", { formatsToSupport: allowedFormats });

@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video-Matrix Data Transfer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bwip-js/4.7.0/bwip-js-min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        :root {
+            --primary: #8b5cf6;
+            --bg: #0f141c;
+            --text: #e2e8f0;
+            --card: #1e293b;
+            --border: #334155;
+            --success: #10b981;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        h1 { margin-top: 10px; color: #fff; font-weight: 800; }
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: var(--card);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            box-sizing: border-box;
+        }
+        button {
+            background-color: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 14px 20px;
+            margin: 10px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            width: calc(100% - 20px);
+            max-width: 200px;
+            transition: all 0.2s;
+        }
+        button:hover { background-color: #a78bfa; transform: translateY(-1px); }
+        .btn-secondary { background-color: #334155; }
+        .btn-secondary:hover { background-color: #475569; }
+        
+        textarea, select {
+            width: 100%; margin-bottom: 15px; padding: 12px; box-sizing: border-box;
+            background-color: #0f141c; color: #fff; border: 1px solid var(--border); border-radius: 8px;
+        }
+        textarea { height: 120px; font-family: monospace; font-size: 14px; }
+        #qr-container { display: inline-block; margin: 20px 0; background: white; padding: 20px; border-radius: 12px; }
+        #matrix-canvas { max-width: 280px; height: auto; display: block; margin: 0 auto; }
+        .hidden { display: none !important; }
+        #reader, #video-reader-container { width: 100%; margin-top: 15px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: #000; }
+        #upload-video-player { width: 100%; max-height: 300px; }
+        
+        .composition-box { margin-top: 20px; background: #0f141c; border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: left; }
+        .composition-title { font-size: 12px; text-transform: uppercase; color: var(--primary); margin-bottom: 8px; font-weight: bold; }
+        .chunk-grid { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+        .chunk-dot { width: 12px; height: 12px; background-color: #334155; border-radius: 2px; }
+        .chunk-dot.filled { background-color: var(--success); box-shadow: 0 0 6px var(--success); }
+        .progress-bar { font-weight: bold; margin: 10px 0; color: #a78bfa; font-size: 18px; }
+    </style>
+</head>
+<body>
+
+    <div id="home-screen" class="container">
+        <h1>Matrix Video Protocol</h1>
+        <p style="color: #94a3b8;">Universal Frequency Optical Transfer</p>
+        <button onclick="showScreen('send-screen')">Transmitter</button>
+        <button onclick="showScreen('receive-setup-screen')">Scanner</button>
+    </div>
+
+    <div id="send-screen" class="container hidden">
+        <h2>Transmitter</h2>
+        <textarea id="text-input" placeholder="Paste data or drop an image..."></textarea>
+        
+        <select id="matrix-type">
+            <option value="azteccode">Aztec Code (Max Density)</option>
+            <option value="datamatrix">Data Matrix</option>
+            <option value="qrcode">Standard QR Code</option>
+        </select>
+
+        <div style="margin-bottom: 15px; text-align: left;">
+            <label style="font-size: 14px; color: #94a3b8;">Frequency Limit:</label><br>
+            <select id="fps-setting">
+                <option value="10">10 FPS (Universal Safe Standard)</option>
+                <option value="15">15 FPS (High Speed - May drop frames)</option>
+                <option value="30">30 FPS (Extreme - Subject to Video Compression Corruption)</option>
+            </select>
+        </div>
+
+        <button onclick="startSending(false)">Live Broadcast</button>
+        <button onclick="startSending(true)" class="btn-secondary">Export to .WEBM Video</button>
+        <button onclick="stopSending(); showScreen('home-screen')" style="background-color: #ef4444;">Back</button>
+        
+        <div id="qr-status" class="progress-bar hidden"></div>
+        <div id="qr-container" class="hidden">
+            <canvas id="matrix-canvas" width="400" height="400"></canvas>
+        </div>
+    </div>
+
+    <div id="receive-setup-screen" class="container hidden">
+        <h2>Scanner Engine</h2>
+        <select id="receiver-matrix-type" style="margin-bottom: 15px;">
+            <option value="AZTEC">Target: Aztec Code</option>
+            <option value="DATA_MATRIX">Target: Data Matrix</option>
+            <option value="QR_CODE">Target: Standard QR</option>
+            <option value="ALL">Auto-Detect All Types</option>
+        </select>
+
+        <button onclick="showScreen('receive-screen'); startLiveScanner();">Open Live Camera</button>
+        <button onclick="showScreen('receive-video-screen');" class="btn-secondary">Decode Video File</button>
+        <button onclick="showScreen('home-screen')" style="background-color: #ef4444;">Back</button>
+    </div>
+
+    <div id="receive-screen" class="container hidden">
+        <h2>Live Lens</h2>
+        <div id="receive-progress" class="progress-bar">Align camera...</div>
+        <div id="reader"></div>
+        
+        <div id="comp-window" class="composition-box hidden">
+            <div class="composition-title">Live Pipeline Assembly</div>
+            <div id="dot-grid" class="chunk-grid"></div>
+        </div>
+
+        <button onclick="stopLiveScanner(); showScreen('home-screen')" style="background-color: #ef4444;">Abort</button>
+        <div id="output-area" class="hidden" style="margin-top:20px; background: #000; padding:10px; word-wrap:break-word;"></div>
+    </div>
+
+    <div id="receive-video-screen" class="container hidden">
+        <h2>Video File Decoder</h2>
+        <input type="file" id="video-upload" accept="video/*" style="margin-bottom:15px; color:white;">
+        <div id="video-progress" class="progress-bar">Awaiting File...</div>
+        
+        <div id="video-reader-container">
+            <video id="upload-video-player" playsinline muted controls></video>
+        </div>
+        <canvas id="hidden-video-canvas" class="hidden"></canvas>
+
+        <div id="video-comp-window" class="composition-box hidden">
+            <div class="composition-title">Offline Assembly</div>
+            <div id="video-dot-grid" class="chunk-grid"></div>
+        </div>
+
+        <button onclick="stopVideoDecoder(); showScreen('home-screen')" style="background-color: #ef4444;">Abort</button>
+        <div id="video-output-area" class="hidden" style="margin-top:20px; background: #000; padding:10px; word-wrap:break-word;"></div>
+    </div>
+
+    <script>
+        // --- SHARED STATE ---
+        let receivedChunks = [];
+        let totalExpectedChunks = 0;
+
+        // --- SENDER / EXPORT LOGIC ---
+        let sendInterval = null;
+        let chunks = [];
+        let currentChunkIndex = 0;
+        let mediaRecorder;
+        let recordedChunks = [];
+
+        function startSending(isExport) {
+            let data = document.getElementById('text-input').value;
+            if (!data) return alert("Please enter data first.");
+            
+            const matrixType = document.getElementById('matrix-type').value;
+            const targetFps = parseInt(document.getElementById('fps-setting').value);
+            const FLASH_SPEED_MS = 1000 / targetFps; 
+            
+            let CHUNK_SIZE = matrixType === 'datamatrix' ? 180 : 350;
+
+            chunks = [];
+            for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+                chunks.push(data.substring(i, i + CHUNK_SIZE));
+            }
+
+            document.getElementById('qr-status').classList.remove('hidden');
+            document.getElementById('qr-container').classList.remove('hidden');
+            const canvas = document.getElementById('matrix-canvas');
+
+            currentChunkIndex = 0;
+            clearInterval(sendInterval);
+
+            // Setup Video Recording if requested
+            if (isExport) {
+                recordedChunks = [];
+                // Capture canvas stream at specified FPS
+                const stream = canvas.captureStream(targetFps);
+                
+                // Force a high bitrate to fight compression artifacting
+                const options = { videoBitsPerSecond: 5000000 }; 
+                mediaRecorder = new MediaRecorder(stream, options);
+                
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) recordedChunks.push(e.data);
+                };
+                
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = `matrix-data-${targetFps}fps.webm`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.getElementById('qr-status').innerText = "Video Export Complete!";
+                };
+                mediaRecorder.start();
+                document.getElementById('qr-status').innerText = "Recording Video...";
+            }
+            
+            sendInterval = setInterval(() => {
+                let payload = `${currentChunkIndex + 1}/${chunks.length}|${chunks[currentChunkIndex]}`;
+                try {
+                    // Fill white background required for scanning contrast before drawing code
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = "white";
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                    bwipjs.toCanvas('matrix-canvas', {
+                        bcid: matrixType, text: payload, scale: 5, includetext: false  
+                    });
+
+                    if (!isExport) {
+                        document.getElementById('qr-status').innerText = `Broadcasting: Frame ${currentChunkIndex + 1}/${chunks.length}`;
+                    }
+
+                    currentChunkIndex++;
+                    
+                    // Stop recording when we cycle through all chunks once
+                    if (isExport && currentChunkIndex >= chunks.length) {
+                        clearInterval(sendInterval);
+                        mediaRecorder.stop();
+                    } else if (currentChunkIndex >= chunks.length) {
+                        currentChunkIndex = 0; // Loop forever for live broadcast
+                    }
+
+                } catch (err) {
+                    console.error(err);
+                }
+            }, FLASH_SPEED_MS);
+        }
+
+        function stopSending() {
+            clearInterval(sendInterval);
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+            document.getElementById('qr-container').classList.add('hidden');
+            document.getElementById('qr-status').classList.add('hidden');
+        }
+
+        // --- RECEIVER: LIVE CAMERA LOGIC ---
+        let html5QrcodeScanner = null;
+
+        function startLiveScanner() {
+            resetState();
+            const expectedFormat = document.getElementById('receiver-matrix-type').value;
+            const formats = expectedFormat === "ALL" 
+                ? [ Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX, Html5QrcodeSupportedFormats.AZTEC ]
+                : [ Html5QrcodeSupportedFormats[expectedFormat] ];
+
+            html5QrcodeScanner = new Html5Qrcode("reader", { formatsToSupport: formats });
+            
+            html5QrcodeScanner.start(
+                { facingMode: "environment" }, 
+                { fps: 30, qrbox: { width: 300, height: 300 }, disableFlip: true }, 
+                (decodedText) => handleScan(decodedText, 'receive-progress', 'comp-window', 'dot-grid', 'output-area', stopLiveScanner)
+            ).catch(err => alert("Camera configuration rejected."));
+        }
+
+        function stopLiveScanner() {
+            if (html5QrcodeScanner) html5QrcodeScanner.stop().catch(e => console.log(e));
+        }
+
+        // --- RECEIVER: VIDEO FILE DECODE LOGIC ---
+        let videoHtml5Qrcode = null;
+        let videoDecodeInterval = null;
+
+        document.getElementById('video-upload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const video = document.getElementById('upload-video-player');
+            video.src = URL.createObjectURL(file);
+            document.getElementById('video-progress').innerText = "Playing & Extracting Frames...";
+            
+            resetState();
+            startVideoDecoderLoop(video);
+        });
+
+        function startVideoDecoderLoop(videoElement) {
+            const expectedFormat = document.getElementById('receiver-matrix-type').value;
+            const formats = expectedFormat === "ALL" 
+                ? [ Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX, Html5QrcodeSupportedFormats.AZTEC ]
+                : [ Html5QrcodeSupportedFormats[expectedFormat] ];
+
+            videoHtml5Qrcode = new Html5Qrcode("reader", { formatsToSupport: formats }); // Instantiate dummy hidden engine
+            const canvas = document.getElementById('hidden-video-canvas');
+            const ctx = canvas.getContext('2d');
+
+            videoElement.play();
+
+            // Run an aggressive frame-extraction loop (30fps polling) on the playing video
+            videoDecodeInterval = setInterval(() => {
+                if (videoElement.paused || videoElement.ended) return;
+
+                canvas.width = videoElement.videoWidth;
+                canvas.height = videoElement.videoHeight;
+                ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+                // Convert canvas to blob to pass into HTML5-QRCode's file scanner
+                canvas.toBlob(blob => {
+                    if(!blob) return;
+                    let file = new File([blob], "frame.jpg", { type: "image/jpeg" });
+                    
+                    videoHtml5Qrcode.scanFileV2(file, true).then(result => {
+                        handleScan(result.decodedText, 'video-progress', 'video-comp-window', 'video-dot-grid', 'video-output-area', stopVideoDecoder);
+                    }).catch(err => { /* Ignore empty/blurry frames */ });
+                }, 'image/jpeg', 0.8);
+
+            }, 33); // Poll video roughly every 33ms (~30fps)
+        }
+
+        function stopVideoDecoder() {
+            clearInterval(videoDecodeInterval);
+            const video = document.getElementById('upload-video-player');
+            video.pause();
+        }
+
+        // --- SHARED DECODE LOGIC ---
+        function resetState() {
+            receivedChunks = [];
+            totalExpectedChunks = 0;
+            document.querySelectorAll('.hidden').forEach(el => {
+                if(el.id.includes('output') || el.id.includes('comp-window')) el.classList.add('hidden');
+            });
+            document.getElementById('dot-grid').innerHTML = '';
+            document.getElementById('video-dot-grid').innerHTML = '';
+        }
+
+        function handleScan(decodedText, progressId, compWindowId, gridId, outputId, stopFunc) {
+            const match = decodedText.match(/^(\d+)\/(\d+)\|(.*)$/s);
+            if (!match) return;
+
+            const index = parseInt(match[1]) - 1;
+            const total = parseInt(match[2]);
+            const data = match[3];
+
+            if (totalExpectedChunks === 0) {
+                totalExpectedChunks = total;
+                receivedChunks = new Array(total).fill(null);
+                
+                document.getElementById(compWindowId).classList.remove('hidden');
+                const grid = document.getElementById(gridId);
+                for(let i=0; i<total; i++) {
+                    let dot = document.createElement('div');
+                    dot.className = 'chunk-dot';
+                    dot.id = `${gridId}-dot-${i}`;
+                    grid.appendChild(dot);
+                }
+            }
+
+            if (receivedChunks[index] === null) {
+                receivedChunks[index] = data;
+                document.getElementById(`${gridId}-dot-${index}`).classList.add('filled');
+                
+                const receivedCount = receivedChunks.filter(c => c !== null).length;
+                document.getElementById(progressId).innerText = `⚡ Collecting: ${receivedCount}/${totalExpectedChunks} Frames`;
+                
+                if (receivedCount === totalExpectedChunks) {
+                    stopFunc(); // Stop camera or video loop
+                    document.getElementById(compWindowId).classList.add('hidden');
+                    
+                    document.getElementById(progressId).innerText = "✓ Decryption Complete!";
+                    const outputArea = document.getElementById(outputId);
+                    outputArea.innerText = receivedChunks.join('');
+                    outputArea.classList.remove('hidden');
+                }
+            }
+        }
+
+        // --- UI ROUTING ---
+        function showScreen(screenId) {
+            ['home-screen', 'send-screen', 'receive-setup-screen', 'receive-screen', 'receive-video-screen'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(screenId).classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
